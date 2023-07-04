@@ -8,6 +8,15 @@ ARG MAVEN_PARAMS="" # can use maven options, e.g. -DskipTests=true -DskipUnitTes
 ARG OPENTELEMETRY_JAVA_AGENT_VERSION=1.17.0
 RUN curl -LSsO https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OPENTELEMETRY_JAVA_AGENT_VERSION}/opentelemetry-javaagent.jar
 
+COPY lib/SqlRender-1.15.1-IRIS.jar /tmp/
+RUN mvn install:install-file \
+   -Dfile=/tmp/SqlRender-1.15.1-IRIS.jar \
+   -DgroupId=org.ohdsi.sql \
+   -DartifactId=SqlRender \
+   -Dversion=1.15.1-IRIS \
+   -Dpackaging=jar \
+   -DgeneratePom=true
+
 # Download dependencies
 COPY pom.xml /code/
 RUN mkdir .git \
