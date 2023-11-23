@@ -2,11 +2,30 @@ FROM maven:3.6-jdk-11 as builder
 
 WORKDIR /code
 
+ARG SQLRENDER_VERSION=1.16.1-SNAPSHOT
+ARG ARACHNE_VERSION=1.20.3-SNAPSHOT
+ARG INTERSYSTEMS_JDBC_VERSION=3.7.1
+
 ARG MAVEN_PROFILE=webapi-docker
-ARG MAVEN_PARAMS="" # can use maven options, e.g. -DskipTests=true -DskipUnitTests=true
+ARG MAVEN_PARAMS="-DSqlRender.version=${SQLRENDER_VERSION} -Darachne.version=${ARACHNE_VERSION}" # can use maven options, e.g. -DskipTests=true -DskipUnitTests=true
 
 ARG OPENTELEMETRY_JAVA_AGENT_VERSION=1.17.0
 RUN curl -LSsO https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OPENTELEMETRY_JAVA_AGENT_VERSION}/opentelemetry-javaagent.jar
+
+COPY lib/* /tmp/lib/
+COPY src/main/extras/iris/intersystems-jdbc-${INTERSYSTEMS_JDBC_VERSION}.jar /tmp/lib/
+# RUN ls -l /tmp/lib/ | sed -e 's/^/mvn install:install-file -Dpackaging=jar -DgeneratePom=true -D/'
+
+RUN mvn install:install-file -Dfile=/tmp/lib/intersystems-jdbc-${INTERSYSTEMS_JDBC_VERSION}.jar -DgroupId=com.intersystems -DartifactId=intersystems-jdbc  -Dversion=${INTERSYSTEMS_JDBC_VERSION} -Dpackaging=jar -DgeneratePom=true && \
+    mvn install:install-file -Dfile=/tmp/lib/SqlRender-${SQLRENDER_VERSION}.jar -DgroupId=org.ohdsi.sql -DartifactId=SqlRender  -Dversion=${SQLRENDER_VERSION} -Dpackaging=jar -DgeneratePom=true && \
+    mvn install:install-file -Dfile=/tmp/lib/arachne-common-types-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc.arachne -DartifactId=arachne-common-types  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/arachne-common-utils-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc.arachne -DartifactId=arachne-common-utils  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/arachne-commons-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc.arachne -DartifactId=arachne-commons  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/arachne-scheduler-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc.arachne -DartifactId=arachne-scheduler  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/data-source-manager-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc -DartifactId=data-source-manager  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/execution-engine-commons-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc.arachne -DartifactId=execution-engine-commons  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true  && \
+    mvn install:install-file -Dfile=/tmp/lib/logging-${ARACHNE_VERSION}.jar -DgroupId=com.odysseusinc -DartifactId=logging  -Dversion=${ARACHNE_VERSION} -Dpackaging=jar -DgeneratePom=true 
+
 
 # Download dependencies
 COPY pom.xml /code/
@@ -22,7 +41,7 @@ COPY src /code/src
 RUN mvn package ${MAVEN_PARAMS} \
     -Dgit.branch=${GIT_BRANCH} \
     -Dgit.commit.id.abbrev=${GIT_COMMIT_ID_ABBREV} \
-    -P${MAVEN_PROFILE} \
+    -P${MAVEN_PROFILE} -e \
     && mkdir war \
     && mv target/WebAPI.war war \
     && cd war \
@@ -56,6 +75,9 @@ COPY --from=builder /code/war/WEB-INF/lib*/* WEB-INF/lib/
 COPY --from=builder /code/war/org org
 COPY --from=builder /code/war/WEB-INF/classes WEB-INF/classes
 COPY --from=builder /code/war/META-INF META-INF
+
+# force copy
+COPY src/main/extras/iris/intersystems-jdbc-3.7.1.jar WEB-INF/lib/
 
 EXPOSE 8080
 
